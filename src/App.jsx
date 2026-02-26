@@ -28,9 +28,17 @@ export default function App() {
   const [headphonesOn, setHeadphonesOn] = useState(null)
 
   const audioCtxRef = useRef(null)
+  
+  // Music refs
   const filterRef = useRef(null)
   const gainRef = useRef(null)
   const audioElRef = useRef(null)
+  
+  // Rain refs
+  const rainFilterRef = useRef(null)
+  const rainGainRef = useRef(null)
+  const rainElRef = useRef(null)
+
   const controlsRef = useRef(null)
 
   const startAudio = () => {
@@ -42,11 +50,12 @@ export default function App() {
       const ctx = new (window.AudioContext || window.webkitAudioContext)()
       audioCtxRef.current = ctx
 
+      // 1. Music Setup
       const source = ctx.createMediaElementSource(audio)
       
       const filter = ctx.createBiquadFilter()
       filter.type = 'lowpass'
-      filter.frequency.value = 150 // Even more muffled on start
+      filter.frequency.value = 150 // Even more muffled on start (headphones off)
       filterRef.current = filter
 
       const gain = ctx.createGain()
@@ -59,6 +68,28 @@ export default function App() {
       gain.connect(ctx.destination)
       
       audio.play().catch(e => console.error("Audio play failed:", e))
+
+      // 2. Rain Setup
+      const rainAudio = new Audio(`${import.meta.env.BASE_URL}rain.mp3`)
+      rainAudio.loop = true
+      rainElRef.current = rainAudio
+
+      const rainSource = ctx.createMediaElementSource(rainAudio)
+      
+      const rainFilter = ctx.createBiquadFilter()
+      rainFilter.type = 'lowpass'
+      rainFilter.frequency.value = 20000 // Clear on start (headphones off)
+      rainFilterRef.current = rainFilter
+
+      const rainGain = ctx.createGain()
+      rainGain.gain.value = 0.6 // Adjust base volume of rain
+      rainGainRef.current = rainGain
+
+      rainSource.connect(rainFilter)
+      rainFilter.connect(rainGain)
+      rainGain.connect(ctx.destination)
+
+      rainAudio.play().catch(e => console.error("Rain audio play failed:", e))
     }
     setAudioStarted(true)
   }
@@ -66,22 +97,38 @@ export default function App() {
   const toggleHeadphones = () => {
     if (!filterRef.current || !gainRef.current || !audioCtxRef.current) return
     
-    // If it's the first time clicking, headphonesOn is null. !null is true.
     const isNowOn = !headphonesOn
     setHeadphonesOn(isNowOn)
     
-    // Smoothly transition the filter frequency and volume
     const { currentTime } = audioCtxRef.current
+    // User requested faster transition when taking headphones off
+    const transitionTime = isNowOn ? 0.8 : 0.1 
+
+    // Music changes: Muffled -> Clear when putting ON
     filterRef.current.frequency.setTargetAtTime(
       isNowOn ? 20000 : 150, 
       currentTime,
-      0.8 // Transition duration constant
+      transitionTime
     )
     gainRef.current.gain.setTargetAtTime(
       isNowOn ? 1.0 : 0.35,
       currentTime,
-      0.8
+      transitionTime
     )
+
+    // Rain changes: Clear -> Muffled when putting ON
+    if (rainFilterRef.current && rainGainRef.current) {
+      rainFilterRef.current.frequency.setTargetAtTime(
+        isNowOn ? 200 : 20000, 
+        currentTime,
+        transitionTime
+      )
+      rainGainRef.current.gain.setTargetAtTime(
+        isNowOn ? 0.05 : 0.6,
+        currentTime,
+        transitionTime
+      )
+    }
   }
 
   const openModal = useCallback((content) => setModal(content), [])
