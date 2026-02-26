@@ -35,7 +35,7 @@ export default function App() {
 
   const startAudio = () => {
     if (!audioCtxRef.current) {
-      const audio = new Audio('/the_way_life_goes.mp3')
+      const audio = new Audio(`${import.meta.env.BASE_URL}the_way_life_goes.mp3`)
       audio.loop = true
       audioElRef.current = audio
 
